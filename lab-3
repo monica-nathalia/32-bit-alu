@@ -1,0 +1,165 @@
+.include "C:\Users\user\Downloads\50002\50002\nominal.jsim"
+.include "C:\Users\user\Downloads\50002\50002\stdcell.jsim"
+.include "C:\Users\user\Downloads\50002\50002\lab3checkoff_10.jsim"
+* 2-input NAND: inputs are A and B, output is Z 
+
+//1BIT ADDER
+.subckt FA a b ci s co
+Xxor1 a b abxor xor2
+Xcxor abxor ci s xor2
+Xaband a b abnd and2
+Xxorand abxor ci xornd and2
+Xfinxor abnd xornd co xor2
+.ends
+
+
+*32 bit adder inputs A[31:0] B[31:0] carry in=ALUFN[0]; output s [31:0] z v n
+.subckt adder32 ALUFN[0] A[31:0] b[31:0] s[31:0] z v n
+Xadder0 A[0] Xb[0] ALUFN[0] s[0] c[0] FA // carry in (from ALUFN)
+Xadder A[31:1] Xb[31:1] c[30:0] s[31:1] c[31:1] FA //(ripple effect carry out)
+Xxor B[31:0] ALUFN0#32 Xb[31:0] xor2
+
+//32-input NOR Gate: input S[31:0]; output z
+Xnor1 s[3:0] ax nor4//inp, inp, inp, inp; out; //This is the of NORs tree format; Its slow so use other format
+Xnor2 s[7:4] by nor4
+Xnor3 s[11:8] c nor4 
+Xnor4 s[15:12] d nor4
+Xnor5 s[19:16] e nor4
+Xnor6 s[23:20] f nor4
+Xnor7 s[27:24] g nor4
+Xnor8 s[31:28] h nor4
+Xand1 ax by c d x and4 //inp, inp, inp, inp; out;
+Xand2 e f g h y and4
+Xand3 x y z and2 //inp, inpt; out*/
+
+//negative check if S is negative (using buffer); input s[31]; output n
+Xneg s[31] n buffer
+
+// overflow input : A[31] B[31] S[31]; output v
+XinvA A[31] Axinv[31] inverter
+XinvB Xb[31] Bxinv[31] inverter
+XinvS S[31] Sinv[31] inverter
+Xv1 A[31] Xb[31] Sinv[31] v1 and3
+Xv2 Axinv[31] Bxinv[31] s[31] v2 and3 
+Xor v1 v2 v or2
+.ends
+
+//32-bit comparator
+.subckt compare32 ALUFN[2:1] z v n cmp[31:0]
+Xxor n v a xor2
+Xoor z a b or2
+Xmux ALUFN[1] ALUFN[2] 0 z a b cmp[0] mux4
+.connect 0 cmp[31:1]
+.ends
+
+//32-bit boolean
+.subckt boole32 ALUFN[3:0] a[31:0] b[31:0] boole[31:0]
+Xbool A[31:0] B[31:0] ALUFN[0]#32 ALUFN[1]#32 ALUFN[2]#32 ALUFN[3]#32 boole[31:0] mux4
+.ends
+
+//left shift function
+.subckt leftshift a[31:0] b[4:0] filler shft[31:0]
+Xmux5 b[4]#32 a[31:0] a[15:0] filler#16 W[31:0] mux2
+Xmux4 b[3]#32 W[31:0] W[23:0] filler#8 X[31:0] mux2
+Xmux3 b[2]#32 X[31:0] X[27:0] filler#4 Y[31:0] mux2
+Xmux2 b[1]#32 Y[31:0] Y[29:0] filler#2 Z[31:0] mux2
+Xmux1 b[0]#32 Z[31:0] Z[30:0] filler shft[31:0] mux2
+.ends
+
+//32-bit shifter
+.subckt shift32 ALUFN[1:0] A[31:0] B[4:0] shft[31:0]
+Xshl a[31:0] b[4:0] 0 x[31:0] leftshift
+Xand1 a[31] alufn[1] outand and2
+Xnew A[0:31] B[4:0] outand y[0:31] leftshift
+Xmux alufn[0]#32 x[31:0] y[31:0] shft[31:0] mux2
+.ends
+
+// single ALU Output
+.subckt alu ALUFN[5:0] A[31:0] B[31:0] alu[31:0] z v n 
+Xadda ALUFN0 A[31:0] B[31:0] add[31:0] z v n adder32
+Xboolen ALUFN[3:0] A[31:0] B[31:0] bool[31:0] boole32
+Xshifat ALUFN[1:0] A[31:0] B[4:0] shift[31:0] shift32
+XcAmp ALUFN[2:1] z v n cmp[31:0] compare32
+*Xmuxxx ALUFN[4]#32 ALUFN[5]#32 add[31:0] bool[31:0] shift[31:0] cmp[31:0] alu[31:0] mux4
+Xmult A[31:0] B[31:0] mulout[31:0] multiply
+Xcomux ALUFN1#32 add[31:0] mulout[31:0] either[31:0] mux2
+Xfinal ALUFN[4]#32 ALUFN[5]#32 either[31:0] bool[31:0] shift[31:0] cmp[31:0] alu[31:0] mux4
+.ends
+
+
+*32 bit adder: inputs AX[31:0] BX[31:0] & ci (carry-in); output S[31:0] co(last carry out)
+
+.subckt 32adder ax[31:0] bx[31:0] ci s[31:0] co 
+Xfirst ax[0] bx[0] ci s[0] c_over[0] FA
+Xmiddle ax[30:1] bx[30:1] c_over[29:0] s[30:1] c_over[30:1] FA
+Xend ax[31] bx[31] c_over[30] s[31] co FA
+.ends
+
+//32-bit multiply
+.subckt multiply a[31:0] b[31:0] output[31:0]
+Xp0 b[0]#32 a[31:0] linea[31:0] and2
+Xp1 b[1]#32 a[31:0] lineB[31:0] and2
+Xp2 b[2]#32 a[31:0] linec[31:0] and2
+Xp3 b[3]#32 a[31:0] lined[31:0] and2
+Xp4 b[4]#32 a[31:0] linee[31:0] and2
+Xp5 b[5]#32 a[31:0] linef[31:0] and2
+Xp6 b[6]#32 a[31:0] lineg[31:0] and2
+Xp7 b[7]#32 a[31:0] lineh[31:0] and2
+Xp8 b[8]#32 a[31:0] linei[31:0] and2
+Xp9 b[9]#32 a[31:0] linej[31:0] and2
+Xp10 b[10]#32 a[31:0] linek[31:0] and2
+Xp11 b[11]#32 a[31:0] linel[31:0] and2
+Xp12 b[12]#32 a[31:0] linem[31:0] and2
+Xp13 b[13]#32 a[31:0] linen[31:0] and2
+Xp14 b[14]#32 a[31:0] lineo[31:0] and2
+Xp15 b[15]#32 a[31:0] linep[31:0] and2
+Xp16 b[16]#32 a[31:0] lineq[31:0] and2
+Xp17 b[17]#32 a[31:0] liner[31:0] and2
+Xp18 b[18]#32 a[31:0] lines[31:0] and2
+Xp19 b[19]#32 a[31:0] linet[31:0] and2
+Xp20 b[20]#32 a[31:0] lineu[31:0] and2
+Xp21 b[21]#32 a[31:0] linev[31:0] and2
+Xp22 b[22]#32 a[31:0] linew[31:0] and2
+Xp23 b[23]#32 a[31:0] linex[31:0] and2
+Xp24 b[24]#32 a[31:0] liney[31:0] and2
+Xp25 b[25]#32 a[31:0] linez[31:0] and2
+Xp26 b[26]#32 a[31:0] lineaa[31:0] and2
+Xp27 b[27]#32 a[31:0] linebb[31:0] and2
+Xp28 b[28]#32 a[31:0] linecc[31:0] and2
+Xp29 b[29]#32 a[31:0] linedd[31:0] and2
+Xp30 b[30]#32 a[31:0] lineee[31:0] and2
+Xp31 b[31]#32 a[31:0] lineff[31:0] and2
+
+Xsum0 linea[31:0] lineb[30:0] 0 0 suma[31:0] t0 32adder
+Xsum1 suma[31:0] linec[29:0] 0#2 0 sumb[31:0] t1 32adder
+Xsum2 sumb[31:0] lined[28:0] 0#3 0 sumc[31:0] t2 32adder
+Xsum3 sumc[31:0] linee[27:0] 0#4 0 sumd[31:0] t3 32adder
+Xsum4 sumd[31:0] linef[26:0] 0#5 0 sume[31:0] t4 32adder
+Xsum5 sume[31:0] lineg[25:0] 0#6 0 sumf[31:0] t5 32adder
+Xsum6 sumf[31:0] lineh[24:0] 0#7 0 sumg[31:0] t6 32adder
+Xsum7 sumg[31:0] linei[23:0] 0#8 0 sumh[31:0] t7 32adder
+Xsum8 sumh[31:0] linej[22:0] 0#9 0 sumi[31:0] t8 32adder
+Xsum9 sumi[31:0] linek[21:0] 0#10 0 sumj[31:0] t9 32adder
+Xsum10 sumj[31:0] linel[20:0] 0#11 0 sumk[31:0] t10 32adder
+Xsum11 sumk[31:0] linem[19:0] 0#12 0 suml[31:0] t11 32adder
+Xsum12 suml[31:0] linen[18:0] 0#13 0 summ[31:0] t12 32adder
+Xsum13 summ[31:0] lineo[17:0] 0#14 0 sumn[31:0] t13 32adder
+Xsum14 sumn[31:0] linep[16:0] 0#15 0 sumo[31:0] t14 32adder
+Xsum15 sumo[31:0] lineq[15:0] 0#16 0 sump[31:0] t15 32adder
+Xsum16 sump[31:0] liner[14:0] 0#17 0 sumq[31:0] t16 32adder
+Xsum17 sumq[31:0] lines[13:0] 0#18 0 sumr[31:0] t17 32adder
+Xsum18 sumr[31:0] linet[12:0] 0#19 0 sums[31:0] t18 32adder
+Xsum19 sums[31:0] lineu[11:0] 0#20 0 sumt[31:0] t19 32adder
+Xsum20 sumt[31:0] linev[10:0] 0#21 0 sumu[31:0] t20 32adder
+Xsum21 sumu[31:0] linew[9:0] 0#22 0 sumv[31:0] t21 32adder
+Xsum22 sumv[31:0] linex[8:0] 0#23 0 sumw[31:0] t22 32adder
+Xsum23 sumw[31:0] liney[7:0] 0#24 0 sumx[31:0] t23 32adder
+Xsum24 sumx[31:0] linez[6:0] 0#25 0 sumy[31:0] t24 32adder
+Xsum25 sumy[31:0] lineaa[5:0] 0#26 0 sumz[31:0] t25 32adder
+Xsum26 sumz[31:0] linebb[4:0] 0#27 0 sumaa[31:0] t26 32adder
+Xsum27 sumaa[31:0] linecc[3:0] 0#28 0 sumbb[31:0] t27 32adder
+Xsum28 sumbb[31:0] linedd[2:0] 0#29 0 sumcc[31:0] t28 32adder
+Xsum29 sumcc[31:0] lineee[1:0] 0#30 0 sumdd[31:0] t29 32adder
+Xsum30 sumdd[31:0] lineff[0] 0#31 0 output[31:0] t30 32adder
+
+.ends
